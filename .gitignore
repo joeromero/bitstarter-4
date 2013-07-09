@@ -1,3 +1,6 @@
+node_modules/cheerio
+node_modules/commander
+node_modules/restler
 *.class
 *.7z
 *.gz
