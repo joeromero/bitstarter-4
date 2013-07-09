@@ -1,6 +1,7 @@
 node_modules/cheerio
 node_modules/commander
 node_modules/restler
+node_modules/when
 *.class
 *.7z
 *.gz

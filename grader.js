@@ -15,16 +15,25 @@ References:
    - https://github.com/visionmedia/commander.js
    - http://tjholowaychuk.com/post/9103188408/commander-js-nodejs-command-line-interfaces-made-easy
 
+ + restler
+   - https://github.com/danwrong/restler
+
+ + when
+   - https://github.com/cujojs/when
+
  + JSON
    - http://en.wikipedia.org/wiki/JSON
    - https://developer.mozilla.org/en-US/docs/JSON
    - https://developer.mozilla.org/en-US/docs/JSON#JSON_in_Firefox_2
 */
 
-var fs = require('fs');
-var program = require('commander');
-var cheerio = require('cheerio');
-var HTMLFILE_DEFAULT = "index.html";
+var fs = require("fs");
+var commander = require("commander");
+var restler = require("restler");
+var cheerio = require("cheerio");
+var when = require("when");
+//var HTMLFILE_DEFAULT = "index.html";
+var HTMLFILE_DEFAULT = "README.md";
 var CHECKSFILE_DEFAULT = "checks.json";
 
 var assertFileExists = function(infile) {
@@ -36,39 +45,71 @@ var assertFileExists = function(infile) {
     return instr;
 };
 
-var cheerioHtmlFile = function(htmlfile) {
-    return cheerio.load(fs.readFileSync(htmlfile));
+var cheerioHtmlContent = function(htmlcontent) {
+    return cheerio.load(htmlcontent);
 };
 
-var loadChecks = function(checksfile) {
-    return JSON.parse(fs.readFileSync(checksfile));
-};
-
-var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
-    var checks = loadChecks(checksfile).sort();
+var checkHtmlContent = function(htmlcontent, checks) {
+    $ = cheerioHtmlContent(htmlcontent);
+    var checksSort = checks.sort();
     var out = {};
-    for(var ii in checks) {
-        var present = $(checks[ii]).length > 0;
-        out[checks[ii]] = present;
+    for(var ii in checksSort) {
+        var present = $(checksSort[ii]).length > 0;
+        out[checksSort[ii]] = present;
     }
     return out;
 };
 
-var clone = function(fn) {
-    // Workaround for commander.js issue.
-    // http://stackoverflow.com/a/6772648
+var clone = function(fn) { // Workaround for commander.js issue. // http://stackoverflow.com/a/6772648
     return fn.bind({});
 };
 
-if(require.main == module) {
-    program
+var when_getHtmlContentFromUrl = function( url ) {
+  var deferred = when.defer();
+
+  restler.get( url ).on( "complete", function( result ) {
+    deferred.resolve( result );
+  });
+
+  return deferred.promise;
+}
+
+var getHtmlContentFromFile = function( htmlfile ) {
+  return fs.readFileSync(htmlfile);
+}
+
+var getJsonContentFromFile = function( checksfile ) {
+    return JSON.parse( fs.readFileSync(checksfile) );
+};
+
+var checkAndLog = function( htmlContent, checksJsonConten ) {
+    var checkJson = checkHtmlContent( htmlContent, checksJsonConten );
+    var outJson = JSON.stringify(checkJson, null, 4);
+    //console.log( htmlContent );
+    console.log( outJson );
+}
+
+if( require.main == module ){
+    commander
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-u, --url <html_file>', 'Url to html page')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    var checkJson,outJson;
+    if( commander.url ){
+      when_getHtmlContentFromUrl( commander.url ).then( function( result ){
+        checkAndLog( 
+          result, 
+          getJsonContentFromFile( commander.checks ) );
+      } );
+
+    } else {
+      checkAndLog( 
+        getHtmlContentFromFile( commander.file ), 
+        getJsonContentFromFile( commander.checks ) );
+    }
+
 } else {
-    exports.checkHtmlFile = checkHtmlFile;
+    exports.checkHtmlContent = checkHtmlContent;
 }
